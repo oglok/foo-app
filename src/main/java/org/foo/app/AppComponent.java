@@ -192,6 +192,7 @@ public class AppComponent {
 
     private final TopologyListener topologyListener = new InternalTopologyListener();
 
+    private DevicePortStatsCommand paco = new DevicePortStatsCommand();
 
     @Activate
     public void activate(ComponentContext context) {
@@ -473,23 +474,25 @@ public class AppComponent {
 
             // Otherwise, get a set of paths that lead from here to the
             // destination edge switch.
-		DevicePortStatsCommand paco = new DevicePortStatsCommand();
-		String theSwitch = paco.paquete();
 
-		if (pkt.receivedFrom().deviceId().equals("of:0000000000000001"))
+		String thePort = paco.paquete();
+
+		log.warn("Gonna send to port: " + thePort);
+
+		if (pkt.receivedFrom().deviceId().toString().equals("of:0000000000000001"))
 		{
-			log.warn("WUUUUUUUUUUUU");
-			    installRule(context, PortNumber.fromString(theSwitch)/*path.src().port()*/);
+//			log.warn("WUUUUUUUUUUUU");
+			    installRule(context, PortNumber.fromString(thePort)/*path.src().port()*/);
 			return;
 
 		}
-		else if(pkt.receivedFrom().deviceId().equals(DeviceId.deviceId("of:0000000000000002"))) 
+		else 
 		{ 
-			log.warn("buaaaaa" + pkt.receivedFrom().deviceId().toString()); 
-			installRule(context, PortNumber.fromString(theSwitch)/*path.src().port()*/);
+//			log.warn("buaaaaa" + pkt.receivedFrom().deviceId().toString()); 
+			installRule(context, PortNumber.fromString("1"));
 			return;
 		}
-            Set<Path> paths =
+/*            Set<Path> paths =
                     topologyService.getPaths(topologyService.currentTopology(),
                                              pkt.receivedFrom().deviceId(),
                                              dst.location().deviceId());
@@ -510,9 +513,9 @@ public class AppComponent {
                 flood(context);
                 return;
             }
-
+*/
             // Otherwise forward and be done with it.
-            installRule(context, PortNumber.fromString("2")/*path.src().port()*/);
+  //          installRule(context, PortNumber.fromString("2")/*path.src().port()*/);
         }
 
     }
@@ -884,24 +887,47 @@ public class AppComponent {
 		    required = false, multiValued = false)*/
 	    String uri = null;
 
+	    private long counter = 0;
+
+	    private int targetPort = 2;
+
 	    private static final String FORMAT =
 		    "   port=%s, pktRx=%s, pktTx=%s, bytesRx=%s, bytesTx=%s, pktRxDrp=%s, pktTxDrp=%s, Dur=%s";
+	
+	    boolean control = false;
 
 	protected String paquete() {
 		DeviceService deviceService = AbstractShellCommand.get(DeviceService.class);
 		
 		if (uri == null) {
-		    for (Device d : getSortedDevices(deviceService)) {
+			Device d = deviceService.getDevice(deviceId("of:0000000000000001"));
 			for (PortStatistics ps : deviceService.getPortStatistics(d.id())){
 				long magic = ps.packetsReceived();
-				log.warn("SU PUTISIMA MADRE: " + ps.packetsReceived());
-				if (magic < 250)
-					return "1";
-				else if(magic < 260)
-					return "2";
-				else
-					return "3";
+				log.warn("Current counter: {}; Pkts received: {}; Delta: {}; Mega-delta: {}",
+					 counter, magic, magic - counter, (magic - counter) / 10);
+
+				long megaDelta = (magic - counter) / 10;
+
+//				log.warn("Mega delta: " + megaDelta);
+
+				if (megaDelta != 0)
+				{
+					log.warn("Gonna do something, depending on control");
+					if (control) 
+					{
+						log.warn("UPDATED THE PORT"); 
+						targetPort += 1; 
+					} 
+					control = true;
+					counter = magic;
+				}
+				if (targetPort > 4)
+					targetPort = 2;
+
+				return Integer.toString(targetPort);
 			}
+		}
+		return "2";
 /*			if (delta) {
 			    if (table) {
 				printPortStatsDeltaTable(d.id(), deviceService.getPortDeltaStatistics(d.id()));
@@ -911,22 +937,7 @@ public class AppComponent {
 			} else {
 			    printPortStats(d.id(), deviceService.getPortStatistics(d.id()));
 			}*/
-		    }
-		} else {
-		    Device d = deviceService.getDevice(deviceId(uri));
-		    if (d == null) {
-			error("No such device %s", uri);
-		    } else if (delta) {
-			if (table) {
-			    printPortStatsDeltaTable(d.id(), deviceService.getPortDeltaStatistics(d.id()));
-			} else {
-			    printPortStatsDelta(d.id(), deviceService.getPortDeltaStatistics(d.id()));
-			}
-		    } else {
-			printPortStats(d.id(), deviceService.getPortStatistics(d.id()));
-		    }
-		}return "of:0000000000000001";
-}
+	}
 	
 	    @Override
 	    protected void execute() {
