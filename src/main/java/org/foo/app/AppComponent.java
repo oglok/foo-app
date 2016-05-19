@@ -15,6 +15,16 @@
  */
 package org.foo.app;
 
+import org.onosproject.net.behaviour.ControllerConfig;
+import org.onosproject.net.behaviour.ControllerInfo;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.DriverService;
+
 import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
@@ -475,6 +485,7 @@ public class AppComponent {
             // Otherwise, get a set of paths that lead from here to the
             // destination edge switch.
 
+
 		String thePort = paco.paquete();
 
 		log.warn("Gonna send to port: " + thePort);
@@ -918,6 +929,8 @@ public class AppComponent {
 						log.warn("UPDATED THE PORT"); 
 						targetPort += 1; 
 					} 
+		DeviceSetControllersCommand changeController= new DeviceSetControllersCommand();
+	changeController.execute();
 					control = true;
 					counter = magic;
 				}
@@ -928,15 +941,6 @@ public class AppComponent {
 			}
 		}
 		return "2";
-/*			if (delta) {
-			    if (table) {
-				printPortStatsDeltaTable(d.id(), deviceService.getPortDeltaStatistics(d.id()));
-			    } else {
-				printPortStatsDelta(d.id(), deviceService.getPortDeltaStatistics(d.id()));
-			    }
-			} else {
-			    printPortStats(d.id(), deviceService.getPortStatistics(d.id()));
-			}*/
 	}
 	
 	    @Override
@@ -1059,5 +1063,41 @@ public class AppComponent {
 	log.info(String.format(format, args));
     }
 }
+public class DeviceSetControllersCommand extends AbstractShellCommand {
 
+        String uri = "of:0000000000000001";
+
+        String[] controllersListStrings = null;
+
+    private DeviceId deviceId;
+    private List<ControllerInfo> newControllers = new ArrayList<>();
+
+    @Override
+    protected void execute() {
+
+        Arrays.asList(controllersListStrings).forEach(
+                cInfoString -> newControllers.add(new ControllerInfo(cInfoString)));
+
+	String ryu_controller = "tcp:127.0.0.1:6650";
+	
+	newControllers.clear();
+	newControllers.add(new ControllerInfo(ryu_controller));
+
+        DriverService service = get(DriverService.class);
+        deviceId = DeviceId.deviceId(uri);
+        DriverHandler h = service.createHandler(deviceId);
+        ControllerConfig config = h.behaviour(ControllerConfig.class);
+        print("before:");
+        config.getControllers().forEach(c -> print(c.target()));
+        try {
+            config.setControllers(newControllers);
+        } catch (NullPointerException e) {
+            print("No Device with requested parameters {} ", uri);
+        }
+        print("after:");
+        config.getControllers().forEach(c -> print(c.target()));
+        print("size %d", config.getControllers().size());
+    }
+
+}
 }
